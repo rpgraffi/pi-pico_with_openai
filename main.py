@@ -4,6 +4,8 @@ import urequests
 import time
 import ubinascii
 import random
+import ujson
+import re
 
 from constants import INSTRUCTION
 from config import OPENAI_API_KEY, OPENAI_ENDPOINT, IMGBB_API_KEY, IMGBB_ENDPOINT
@@ -27,39 +29,7 @@ def connect_wifi(ssid, password):
     print("Connected to WiFi")
     print(wlan.ifconfig())
     
-# Function to encode the image
-def encode_image_in_chunks(file_path, chunk_size=128):
-    encoded_parts = []
-    try:
-        with open(file_path, 'rb') as img_file:
-            while True:
-                chunk = img_file.read(chunk_size)
-                if not chunk:
-                    break
-                encoded_chunk = ubinascii.b2a_base64(chunk).decode('utf-8').strip()
-                encoded_parts.append(encoded_chunk)
-                # Clear the memory for the chunk after processing
-                del chunk
-    except MemoryError:
-        print("MemoryError: Failed to allocate memory for image chunk.")
-        return None
-    return ''.join(encoded_parts)
 
-# Function to upload an image to ImgBB
-def upload_image_to_imgbb(image_path):
-    with open(image_path, 'rb') as img_file:
-        image_data = img_file.read()
-        
-    payload = {
-        'key': IMGBB_API_KEY,
-        'image': image_data
-    }
-    headers = {
-        'Content-Type': 'application/octet-stream'
-    }
-    
-    response = urequests.post(IMGBB_ENDPOINT, data=payload, headers=headers)
-    return response
 
 def get_random_image():
     return trash[random.randint(0, len(trash) - 1)]
@@ -68,7 +38,8 @@ def get_random_image():
 def get_data(model="gpt-4o", is_local_image=False, image_path=""):
     image = image_path
     if is_local_image:
-        image = encode_image_in_chunks(image_path)
+        print("Upload currenlty not supported")
+        # image = encode_image_in_chunks(image_path)
     else:
         if image_path:
             image = image_path
@@ -115,21 +86,52 @@ def get_openai_response():
     }
 
     # data = get_data(image_path="https://i0.wp.com/post.healthline.com/wp-content/uploads/2020/05/yawning_overtired_baby-1296x728-header.jpg?w=1155&h=1528")
-    data = get_data(is_local_image=True, image_path="baby.png")
+    # data = get_data(is_local_image=True, image_path="baby.png")
+    data = get_data()
 
     response = urequests.post(OPENAI_ENDPOINT, headers=headers, json=data)
     if response.status_code == 200:
         result = response.json()
+        result_json = result['choices'][0]['message']['content'].strip()
         print("Response from OpenAI:")
         print(result['choices'][0]['message']['content'].strip())
+        sort_trash(result_json)
     else:
         print("Error:", response.status_code, response.text)
+        
+def sort_trash(json):
+    # Remove backticks from the response
+    cleaned_response = re.sub(r'json', '', json).strip().strip('')
+    cleaned_response = re.sub(r'`', '', cleaned_response).strip().strip('')
+
+    # Parse the cleaned JSON response
+    data = ujson.loads(cleaned_response)
+
+    # Get the category from the parsed data
+    category = data['selectedBin'][0]['category']
+
+    # Dictionary to simulate switch case
+    switch_case = {
+        "blue": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Blue bin (blaue Tonne): For paper and cardboard. You cannot use plastic bags for the blue bin. Flatten cardboard boxes before you recycle them."),
+        "yellow": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Yellow or orange bin (Wertstofftonne): For plastic and metal containers, and containers with the Gruener Punkt logo."),
+        "brown": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Brown bin (Biomuell): For biodegradable goods. It's used to make biogas and compost. Don't use plastic or biodegradable bags, only paper bags."),
+        "grey": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Grey bin (Restmuell): Things that you cannot sell, donate, or recycle."),
+        "glass": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Glass recycling bins (Glasiglus): For glass containers that don't have a deposit (Pfand). In Berlin, you don't need to clean glass containers. If your building does not have glass recycling bins, find them in your neighborhood. There are 3 bin types: Braunglas bin for brown glass, Gruenglas bin for green, red, and blue glass, Weissglas bin for transparent glass."),
+        "problem": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Problematic: For everything that is not meant to be thrown away."),
+        "none": lambda: print(data['selectedBin'][0]['explanation'] + "\nCategory is Not recognized: If not recognized, the image returns this."),
+    }
+
+    # Default action if category is not found
+    default_action = lambda: print("Category not recognized. Most likely OpenAI gave an invalid formatted json response.")
+
+    # Execute the corresponding action or the default action
+    switch_case.get(category, default_action)()
+    return category
 
 # Main function
 def main():
     connect_wifi(ssid, password)
-    upload_image_to_imgbb(image_path="baby.png")
-    # get_openai_response()
+    get_openai_response()
 
 # Run the main function
 if __name__ == "__main__":
