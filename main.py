@@ -2,7 +2,6 @@ import os
 import network
 import urequests
 import time
-import ubinascii
 import random
 import ujson
 import re
@@ -105,7 +104,12 @@ def sort_trash(json):
     cleaned_response = re.sub(r'`', '', cleaned_response).strip().strip('')
 
     # Parse the cleaned JSON response
-    data = ujson.loads(cleaned_response)
+    try:
+        data = ujson.loads(cleaned_response)
+    except ValueError as e:
+        # Call function to show error
+        print("Invalid JSON response. Please check the response from OpenAI.")
+        return
 
     # Get the category from the parsed data
     category = data['selectedBin'][0]['category']
