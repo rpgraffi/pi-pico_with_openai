@@ -1,0 +1,1 @@
+trash = ["https://img.kleinanzeigen.de/api/v1/prod-ads/images/fe/fe36f099-a82d-43f6-85b8-a68d974a7e43?rule=$_35.JPG","https://www.shutterstock.com/image-photo/banana-peel-on-ground-260nw-1097543657.jpg", "https://media.sciencephoto.com/image/c0127153/800wm"]
